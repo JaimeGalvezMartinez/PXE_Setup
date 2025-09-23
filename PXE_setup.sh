@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # ==============================
@@ -22,23 +21,27 @@ DOWNLOAD_URL="https://github.com/ventoy/PXE/releases/download/v$IVENTOY_VERSION/
 echo -e "${BLUE}🚀 Iniciando instalación de iVentoy PXE...${NC}"
 
 # ------------------------------
-# 1️⃣ Detener y limpiar instalación anterior
+# 1️⃣ Detener y limpiar instalación previa y archivos de configuración
 # ------------------------------
-echo -e "${YELLOW}🔄 Deteniendo y limpiando instalaciones previas...${NC}"
+echo -e "${YELLOW}🔄 Deteniendo y eliminando configuraciones anteriores...${NC}"
+
 if systemctl is-active --quiet iventoy.service; then
     echo -e "${YELLOW}Deteniendo servicio existente...${NC}"
     sudo systemctl stop iventoy.service
 fi
+
 if systemctl list-unit-files | grep -q iventoy.service; then
     echo -e "${YELLOW}Deshabilitando servicio existente...${NC}"
     sudo systemctl disable iventoy.service
 fi
+
 if [ -f "$SERVICE_FILE" ]; then
     echo -e "${YELLOW}Eliminando archivo de servicio antiguo...${NC}"
     sudo rm -f "$SERVICE_FILE"
 fi
+
 if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}Eliminando instalación anterior...${NC}"
+    echo -e "${YELLOW}Eliminando instalación anterior y archivos de configuración...${NC}"
     sudo rm -rf "$INSTALL_DIR"
 fi
 
@@ -63,7 +66,7 @@ tar -xzf /tmp/iventoy.tar.gz -C $INSTALL_DIR
 # ------------------------------
 SCRIPT_PATH=$(find $INSTALL_DIR -name iventoy.sh | head -n1)
 if [ -z "$SCRIPT_PATH" ]; then
-    echo -e "${RED}❌ Error: No se encontró iventoy.sh en la instalación.${NC}"
+    echo -e "${RED}❌ Error: No se encontró iventoy.sh después de extraer el tar.${NC}"
     exit 1
 fi
 chmod +x "$SCRIPT_PATH"
@@ -90,7 +93,7 @@ Description=iVentoy PXE Service
 After=network.target
 
 [Service]
-Type=simple
+Type=forking
 ExecStart=/bin/bash $SCRIPT_PATH start
 ExecStop=/bin/bash $SCRIPT_PATH stop
 Restart=on-failure
@@ -107,10 +110,10 @@ EOF"
 echo -e "${BLUE}🚀 Habilitando y arrancando el servicio...${NC}"
 sudo systemctl daemon-reload
 sudo systemctl enable iventoy.service
-sudo systemctl start iventoy.service
+sudo systemctl restart iventoy.service
 
 # ------------------------------
-# ✅ Finalización
+# 8️⃣ Verificación rápida
 # ------------------------------
 echo -e "${GREEN}🎉 iVentoy instalado correctamente en $INSTALL_DIR${NC}"
 echo -e "${GREEN}📄 JSON creado en $JSON_FILE${NC}"
