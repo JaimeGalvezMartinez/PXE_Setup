@@ -115,3 +115,5 @@ sudo systemctl start iventoy.service
 echo -e "${GREEN}🎉 iVentoy instalado correctamente en $INSTALL_DIR${NC}"
 echo -e "${GREEN}📄 JSON creado en $JSON_FILE${NC}"
 echo -e "${GREEN}🔹 Servicio systemd activo: systemctl status iventoy.service${NC}"
+echo -e "${GREEN}🔹 Cada vez que se inicie el sistema, iVentoy lo hara automaticamente${NC}"
+echo -e "${GREEN}🔹 Para ver la infer Web del PXE, Dirijase a http://x.x.x.x:26000 o localhost:26000${NC}"
