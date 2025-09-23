@@ -1,164 +1,117 @@
+
 #!/bin/bash
 
-# ================================
-# Instalador automático de iVentoy
-# Compatible con systemd y OpenRC
-# ================================
+# ==============================
+# iVentoy PXE Installer & Service
+# ==============================
 
-# Versión configurable (por defecto 1.0.21)
-IVENTOY_VERSION="${1:-1.0.21}"
-
-# (Opcional) SHA256 esperado como segundo argumento
-EXPECTED_HASH="${2}"
-
-# URL de descarga
-URL="https://github.com/ventoy/PXE/releases/download/v${IVENTOY_VERSION}/iventoy-${IVENTOY_VERSION}-linux-free.tar.gz"
-
-# Directorio de instalación
-INSTALL_DIR="/opt/iventoy"
-
-# Colores
-GREEN="\e[32m"
+# Colores para mensajes
 RED="\e[31m"
+GREEN="\e[32m"
 YELLOW="\e[33m"
-RESET="\e[0m"
+BLUE="\e[34m"
+NC="\e[0m" # Sin color
 
-# Verificar root
-if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${RED}Este script necesita permisos de superusuario (root).${RESET}"
+# Variables
+IVENTOY_VERSION="1.0.19"
+INSTALL_DIR="/opt/iventoy"
+JSON_FILE="$INSTALL_DIR/iventoy.json"
+SERVICE_FILE="/etc/systemd/system/iventoy.service"
+DOWNLOAD_URL="https://github.com/ventoy/PXE/releases/download/v$IVENTOY_VERSION/iventoy-$IVENTOY_VERSION-linux-free.tar.gz"
+
+echo -e "${BLUE}🚀 Iniciando instalación de iVentoy PXE...${NC}"
+
+# ------------------------------
+# 1️⃣ Detener y limpiar instalación anterior
+# ------------------------------
+echo -e "${YELLOW}🔄 Deteniendo y limpiando instalaciones previas...${NC}"
+if systemctl is-active --quiet iventoy.service; then
+    echo -e "${YELLOW}Deteniendo servicio existente...${NC}"
+    sudo systemctl stop iventoy.service
+fi
+if systemctl list-unit-files | grep -q iventoy.service; then
+    echo -e "${YELLOW}Deshabilitando servicio existente...${NC}"
+    sudo systemctl disable iventoy.service
+fi
+if [ -f "$SERVICE_FILE" ]; then
+    echo -e "${YELLOW}Eliminando archivo de servicio antiguo...${NC}"
+    sudo rm -f "$SERVICE_FILE"
+fi
+if [ -d "$INSTALL_DIR" ]; then
+    echo -e "${YELLOW}Eliminando instalación anterior...${NC}"
+    sudo rm -rf "$INSTALL_DIR"
+fi
+
+# ------------------------------
+# 2️⃣ Crear directorio de instalación
+# ------------------------------
+echo -e "${BLUE}📂 Creando directorio de instalación: $INSTALL_DIR${NC}"
+sudo mkdir -p $INSTALL_DIR
+sudo chown $USER:$USER $INSTALL_DIR
+
+# ------------------------------
+# 3️⃣ Descargar y extraer iVentoy
+# ------------------------------
+echo -e "${BLUE}⬇️  Descargando iVentoy versión $IVENTOY_VERSION...${NC}"
+wget $DOWNLOAD_URL -O /tmp/iventoy.tar.gz
+
+echo -e "${BLUE}📦 Extrayendo archivos en $INSTALL_DIR...${NC}"
+tar -xzf /tmp/iventoy.tar.gz -C $INSTALL_DIR
+
+# ------------------------------
+# 4️⃣ Detectar iventoy.sh
+# ------------------------------
+SCRIPT_PATH=$(find $INSTALL_DIR -name iventoy.sh | head -n1)
+if [ -z "$SCRIPT_PATH" ]; then
+    echo -e "${RED}❌ Error: No se encontró iventoy.sh en la instalación.${NC}"
     exit 1
 fi
+chmod +x "$SCRIPT_PATH"
+echo -e "${GREEN}✔ Encontrado iventoy.sh en: $SCRIPT_PATH${NC}"
 
-# Detectar sistema
-if [ -f /etc/debian_version ]; then
-    OS_FAMILY="debian"
-    PACKAGE_MANAGER="apt-get"
-    INSTALL_DEPENDENCIES="wget tar"
-elif [ -f /etc/alpine-release ]; then
-    OS_FAMILY="alpine"
-    PACKAGE_MANAGER="apk"
-    INSTALL_DEPENDENCIES="wget tar"
-elif [ -f /etc/redhat-release ]; then
-    OS_FAMILY="redhat"
-    PACKAGE_MANAGER="yum"
-    INSTALL_DEPENDENCIES="wget tar"
-else
-    echo -e "${RED}Sistema operativo no soportado.${RESET}"
-    exit 1
-fi
-
-# Instalar dependencias
-echo -e "${YELLOW}Instalando dependencias necesarias...${RESET}"
-if [ "$PACKAGE_MANAGER" == "apt-get" ]; then
-    apt-get update && apt-get install -y $INSTALL_DEPENDENCIES
-elif [ "$PACKAGE_MANAGER" == "apk" ]; then
-    apk update && apk add $INSTALL_DEPENDENCIES
-elif [ "$PACKAGE_MANAGER" == "yum" ]; then
-    yum install -y $INSTALL_DEPENDENCIES
-fi
-
-# Crear directorio
-echo -e "${YELLOW}Creando directorio de instalación en ${INSTALL_DIR}...${RESET}"
-mkdir -p ${INSTALL_DIR}
-
-# Función de descarga compatible
-download_file() {
-    local url="$1"
-    local dest="$2"
-    if wget --help 2>&1 | grep -q -- "--show-progress"; then
-        wget -q --show-progress -O "$dest" "$url"
-    else
-        echo -e "${YELLOW}(wget sin --show-progress, usando modo compatible)${RESET}"
-        wget -O "$dest" "$url"
-    fi
+# ------------------------------
+# 5️⃣ Crear archivo JSON
+# ------------------------------
+echo -e "${BLUE}📝 Creando JSON con ruta del ejecutable...${NC}"
+cat <<EOF > $JSON_FILE
+{
+  "path": "$SCRIPT_PATH"
 }
-
-# Descargar
-echo -e "${YELLOW}Descargando Ventoy PXE ${IVENTOY_VERSION}...${RESET}"
-download_file "${URL}" "/tmp/iventoy-${IVENTOY_VERSION}.tar.gz"
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Error: La descarga falló.${RESET}"
-    exit 1
-fi
-
-# Verificar hash si se proporcionó
-if [ -n "$EXPECTED_HASH" ]; then
-    echo -e "${YELLOW}Verificando integridad del archivo...${RESET}"
-    FILE_HASH=$(sha256sum /tmp/iventoy-${IVENTOY_VERSION}.tar.gz | awk '{print $1}')
-    if [ "$FILE_HASH" != "$EXPECTED_HASH" ]; then
-        echo -e "${RED}Error: El hash no coincide.${RESET}"
-        echo "Esperado: $EXPECTED_HASH"
-        echo "Obtenido: $FILE_HASH"
-        exit 1
-    else
-        echo -e "${GREEN}Hash verificado correctamente.${RESET}"
-    fi
-fi
-
-# Descomprimir
-echo -e "${YELLOW}Descomprimiendo el archivo...${RESET}"
-tar -xzf /tmp/iventoy-${IVENTOY_VERSION}.tar.gz -C ${INSTALL_DIR}
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Error: No se pudo descomprimir el archivo.${RESET}"
-    exit 1
-fi
-
-# Limpiar
-rm /tmp/iventoy-${IVENTOY_VERSION}.tar.gz
-
-# Permisos
-chown -R root:root ${INSTALL_DIR}
-chmod -R 755 ${INSTALL_DIR}
-
-# Alias para ejecutar fácilmente
-ln -sf ${INSTALL_DIR}/iventoy /usr/local/bin/iventoy
-
-# =====================================
-# Crear servicio según el sistema
-# =====================================
-if [ "$OS_FAMILY" == "alpine" ]; then
-    echo -e "${YELLOW}Creando servicio OpenRC para Alpine...${RESET}"
-    SERVICE_FILE="/etc/init.d/iventoy"
-    cat > $SERVICE_FILE <<EOF
-#!/sbin/openrc-run
-
-description="iVentoy PXE Service"
-command="${INSTALL_DIR}/iventoy"
-command_args="-c ${INSTALL_DIR}/config/iventoy.json"
-command_background="yes"
-pidfile="/var/run/iventoy.pid"
 EOF
-    chmod +x $SERVICE_FILE
-    rc-update add iventoy default
-    echo -e "${GREEN}Servicio OpenRC creado en Alpine.${RESET}"
-    echo "👉 Usa: rc-service iventoy start | stop | restart | status"
+echo -e "${GREEN}✔ JSON creado en $JSON_FILE${NC}"
 
-else
-    echo -e "${YELLOW}Creando servicio systemd...${RESET}"
-    SERVICE_FILE="/etc/systemd/system/iventoy.service"
-    cat > $SERVICE_FILE <<EOF
+# ------------------------------
+# 6️⃣ Crear servicio systemd
+# ------------------------------
+echo -e "${BLUE}⚙️  Configurando servicio systemd...${NC}"
+sudo bash -c "cat <<EOF > $SERVICE_FILE
 [Unit]
 Description=iVentoy PXE Service
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=${INSTALL_DIR}/iventoy -c ${INSTALL_DIR}/config/iventoy.json
-WorkingDirectory=${INSTALL_DIR}
-Restart=always
+ExecStart=/bin/bash $SCRIPT_PATH start
+ExecStop=/bin/bash $SCRIPT_PATH stop
+Restart=on-failure
+WorkingDirectory=$(dirname $SCRIPT_PATH)
 User=root
 
 [Install]
 WantedBy=multi-user.target
-EOF
-    systemctl daemon-reload
-    systemctl enable iventoy.service
-    echo -e "${GREEN}Servicio systemd creado.${RESET}"
-    echo "👉 Usa: systemctl start iventoy | stop | status"
-fi
+EOF"
 
-# Confirmación
-echo -e "${GREEN}Instalación completa de Ventoy PXE ${IVENTOY_VERSION}.${RESET}"
-echo "Directorio: ${INSTALL_DIR}"
-echo "Ejecuta manualmente con: iventoy"
+# ------------------------------
+# 7️⃣ Habilitar y arrancar servicio
+# ------------------------------
+echo -e "${BLUE}🚀 Habilitando y arrancando el servicio...${NC}"
+sudo systemctl daemon-reload
+sudo systemctl enable iventoy.service
+sudo systemctl start iventoy.service
 
+# ------------------------------
+# ✅ Finalización
+# ------------------------------
+echo -e "${GREEN}🎉 iVentoy instalado correctamente en $INSTALL_DIR${NC}"
+echo -e "${GREEN}📄 JSON creado en $JSON_FILE${NC}"
+echo -e "${GREEN}🔹 Servicio systemd activo: systemctl status iventoy.service${NC}"
