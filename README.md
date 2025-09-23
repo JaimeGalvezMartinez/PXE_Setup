@@ -32,13 +32,13 @@ chmod +x PXE_Setup.sh
 Ejecuta el instalador como root:
 
 ```bash
-sudo ./install_iventoy.sh
+sudo ./PXE_Setup.sh
 ```
 Por defecto instalará la versión 1.0.21.
 
 Si además deseas verificar el archivo descargado con su hash SHA256:
 ```
-sudo ./install_iventoy.sh 1.0.22 "abc123def456..."
+sudo ./PXE_Setup.sh 1.0.22 "abc123def456..."
 ```
 ⚙️ Uso
 
