@@ -61,9 +61,9 @@ El servicio se habilita automáticamente en cada reinicio:
 
 📝 Notas importantes
 
-# - Necesitas permisos de root para ejecutar el instalador. -
+** - Necesitas permisos de root para ejecutar el instalador. -
 
-# - En Alpine Linux, iVentoy puede requerir adaptaciones ya que usa openrc en lugar de systemd.
+** - En Alpine Linux, iVentoy puede requerir adaptaciones ya que usa openrc en lugar de systemd.
 
 📄 Licencia
 
