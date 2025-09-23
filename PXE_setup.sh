@@ -2,7 +2,7 @@
 
 # ================================
 # Instalador automático de iVentoy
-# Con soporte systemd
+# Compatible con systemd y OpenRC
 # ================================
 
 # Versión configurable (por defecto 1.0.21)
@@ -29,14 +29,17 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Detectar gestor de paquetes
+# Detectar sistema
 if [ -f /etc/debian_version ]; then
+    OS_FAMILY="debian"
     PACKAGE_MANAGER="apt-get"
     INSTALL_DEPENDENCIES="wget tar"
 elif [ -f /etc/alpine-release ]; then
+    OS_FAMILY="alpine"
     PACKAGE_MANAGER="apk"
     INSTALL_DEPENDENCIES="wget tar"
 elif [ -f /etc/redhat-release ]; then
+    OS_FAMILY="redhat"
     PACKAGE_MANAGER="yum"
     INSTALL_DEPENDENCIES="wget tar"
 else
@@ -58,9 +61,21 @@ fi
 echo -e "${YELLOW}Creando directorio de instalación en ${INSTALL_DIR}...${RESET}"
 mkdir -p ${INSTALL_DIR}
 
+# Función de descarga compatible
+download_file() {
+    local url="$1"
+    local dest="$2"
+    if wget --help 2>&1 | grep -q -- "--show-progress"; then
+        wget -q --show-progress -O "$dest" "$url"
+    else
+        echo -e "${YELLOW}(wget sin --show-progress, usando modo compatible)${RESET}"
+        wget -O "$dest" "$url"
+    fi
+}
+
 # Descargar
 echo -e "${YELLOW}Descargando Ventoy PXE ${IVENTOY_VERSION}...${RESET}"
-wget -q --show-progress ${URL} -O /tmp/iventoy-${IVENTOY_VERSION}.tar.gz
+download_file "${URL}" "/tmp/iventoy-${IVENTOY_VERSION}.tar.gz"
 if [ $? -ne 0 ]; then
     echo -e "${RED}Error: La descarga falló.${RESET}"
     exit 1
@@ -98,11 +113,30 @@ chmod -R 755 ${INSTALL_DIR}
 # Alias para ejecutar fácilmente
 ln -sf ${INSTALL_DIR}/iventoy /usr/local/bin/iventoy
 
-# Crear servicio systemd
-SERVICE_FILE="/etc/systemd/system/iventoy.service"
-echo -e "${YELLOW}Creando servicio systemd en ${SERVICE_FILE}...${RESET}"
+# =====================================
+# Crear servicio según el sistema
+# =====================================
+if [ "$OS_FAMILY" == "alpine" ]; then
+    echo -e "${YELLOW}Creando servicio OpenRC para Alpine...${RESET}"
+    SERVICE_FILE="/etc/init.d/iventoy"
+    cat > $SERVICE_FILE <<EOF
+#!/sbin/openrc-run
 
-cat > $SERVICE_FILE <<EOF
+description="iVentoy PXE Service"
+command="${INSTALL_DIR}/iventoy"
+command_args="-c ${INSTALL_DIR}/config/iventoy.json"
+command_background="yes"
+pidfile="/var/run/iventoy.pid"
+EOF
+    chmod +x $SERVICE_FILE
+    rc-update add iventoy default
+    echo -e "${GREEN}Servicio OpenRC creado en Alpine.${RESET}"
+    echo "👉 Usa: rc-service iventoy start | stop | restart | status"
+
+else
+    echo -e "${YELLOW}Creando servicio systemd...${RESET}"
+    SERVICE_FILE="/etc/systemd/system/iventoy.service"
+    cat > $SERVICE_FILE <<EOF
 [Unit]
 Description=iVentoy PXE Service
 After=network.target
@@ -117,19 +151,14 @@ User=root
 [Install]
 WantedBy=multi-user.target
 EOF
-
-# Recargar systemd
-systemctl daemon-reload
-systemctl enable iventoy.service
+    systemctl daemon-reload
+    systemctl enable iventoy.service
+    echo -e "${GREEN}Servicio systemd creado.${RESET}"
+    echo "👉 Usa: systemctl start iventoy | stop | status"
+fi
 
 # Confirmación
 echo -e "${GREEN}Instalación completa de Ventoy PXE ${IVENTOY_VERSION}.${RESET}"
 echo "Directorio: ${INSTALL_DIR}"
 echo "Ejecuta manualmente con: iventoy"
-echo "Servicio systemd creado: iventoy.service"
-echo
-echo "👉 Comandos útiles:"
-echo "  systemctl start iventoy    # Iniciar servicio"
-echo "  systemctl stop iventoy     # Detener servicio"
-echo "  systemctl status iventoy   # Ver estado"
-echo "  journalctl -u iventoy -f   # Ver logs en tiempo real"
+
