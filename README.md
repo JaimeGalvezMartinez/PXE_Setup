@@ -13,7 +13,7 @@ El script soporta varias distribuciones, descarga la versión especificada de iV
   - Debian / Ubuntu
 - Descarga de la versión deseada desde GitHub.
 - Verificación opcional de integridad con **SHA256**.
-- Creación de alias para ejecutar `iventoy` desde cualquier lugar.
+- Creación de **systemd** para ejecutar `iventoy` desde cualquier lugar.
 - Servicio **systemd** para ejecución automática al iniciar el sistema.
 
 ---
