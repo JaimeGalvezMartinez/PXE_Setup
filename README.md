@@ -52,6 +52,7 @@ El servicio se habilita automáticamente en cada reinicio:
 📝 Notas importantes
 
 **- Necesitas permisos de root para ejecutar el instalador.-**
+<pre></pre>
 **- Compatible con Ubuntu 16.04 en adelante.-**
 
 📄 Licencia
