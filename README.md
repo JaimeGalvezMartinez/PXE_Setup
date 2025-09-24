@@ -10,7 +10,7 @@ El script soporta varias distribuciones, descarga la versión especificada de iV
 
 - Instalación rápida y automatizada.
 - Soporte para:
-  - Debian / Ubuntu
+  - Debian / Ubuntu 16.04 =>
 - Descarga de la versión deseada desde GitHub.
 - Verificación opcional de integridad con **SHA256**.
 - Creación de **systemd** para ejecutar `iventoy` desde cualquier lugar.
@@ -51,7 +51,8 @@ El servicio se habilita automáticamente en cada reinicio:
 
 📝 Notas importantes
 
-** - Necesitas permisos de root para ejecutar el instalador. -
+**- Necesitas permisos de root para ejecutar el instalador.-**
+**- Compatible con Ubuntu 16.04 en adelante.-**
 
 📄 Licencia
 
